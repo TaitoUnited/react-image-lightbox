@@ -25,6 +25,7 @@ import {
   SOURCE_TOUCH,
   SOURCE_POINTER,
   MIN_SWIPE_DISTANCE,
+  DRAG_ZOOM_OUT_THRESHOLD,
 } from './constant';
 import baseStyles from './style.scss';
 
@@ -137,7 +138,6 @@ class ReactImageLightbox extends Component {
     };
 
     this.closeIfClickInner = this.closeIfClickInner.bind(this);
-    this.handleImageDoubleClick = this.handleImageDoubleClick.bind(this);
     this.handleImageMouseWheel = this.handleImageMouseWheel.bind(this);
     this.handleKeyInput = this.handleKeyInput.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
@@ -581,18 +581,6 @@ class ReactImageLightbox extends Component {
 
     const keyCode = event.which || event.keyCode;
 
-    // Ignore key presses that happen too close to each other (when rapid fire key pressing or holding down the key)
-    // But allow it if it's a lightbox closing action
-    const currentTime = new Date();
-    if (
-      currentTime.getTime() - this.lastKeyDownTime <
-        this.props.keyRepeatLimit &&
-      keyCode !== KEYS.ESC
-    ) {
-      return;
-    }
-    this.lastKeyDownTime = currentTime.getTime();
-
     switch (keyCode) {
       // ESC key closes the lightbox
       case KEYS.ESC:
@@ -622,6 +610,30 @@ class ReactImageLightbox extends Component {
         this.requestMoveNext(event);
         break;
 
+      case KEYS.UP_ARROW:
+        event.preventDefault();
+        this.changeZoom(this.state.zoomLevel + ZOOM_BUTTON_INCREMENT_SIZE);
+        break;
+
+      case KEYS.DOWN_ARROW:
+        event.preventDefault();
+        if (this.state.zoomLevel > MIN_ZOOM_LEVEL) {
+          const nextZoomLevel =
+            this.state.zoomLevel - ZOOM_BUTTON_INCREMENT_SIZE;
+
+          this.changeZoom(nextZoomLevel);
+        } else {
+          this.requestClose(event);
+        }
+        break;
+      case KEYS.ENTER:
+        event.preventDefault();
+        if (this.state.zoomLevel > MIN_ZOOM_LEVEL) {
+          this.changeZoom(MIN_ZOOM_LEVEL);
+        } else {
+          this.changeZoom(MIN_ZOOM_LEVEL + ZOOM_BUTTON_INCREMENT_SIZE);
+        }
+        break;
       default:
     }
   }
@@ -696,23 +708,6 @@ class ReactImageLightbox extends Component {
 
       this.changeZoom(
         this.state.zoomLevel - event.deltaY,
-        event.clientX,
-        event.clientY
-      );
-    }
-  }
-
-  /**
-   * Handle a double click on the current image
-   */
-  handleImageDoubleClick(event) {
-    if (this.state.zoomLevel > MIN_ZOOM_LEVEL) {
-      // A double click when zoomed in zooms all the way out
-      this.changeZoom(MIN_ZOOM_LEVEL, event.clientX, event.clientY);
-    } else {
-      // A double click when zoomed all the way out zooms in
-      this.changeZoom(
-        this.state.zoomLevel + ZOOM_BUTTON_INCREMENT_SIZE,
         event.clientX,
         event.clientY
       );
@@ -849,7 +844,6 @@ class ReactImageLightbox extends Component {
   }
 
   multiPointerStart(event) {
-    this.handleEnd(null);
     switch (this.pointerList.length) {
       case 1: {
         event.preventDefault();
@@ -966,6 +960,16 @@ class ReactImageLightbox extends Component {
     this.currentAction = ACTION_NONE;
     this.moveStartX = 0;
     this.moveStartY = 0;
+    const moveDeltaX = Math.abs(this.state.offsetX - this.moveStartOffsetX);
+    const moveDeltaY = Math.abs(this.state.offsetY - this.moveStartOffsetY);
+
+    if (
+      moveDeltaX < DRAG_ZOOM_OUT_THRESHOLD &&
+      moveDeltaY < DRAG_ZOOM_OUT_THRESHOLD
+    ) {
+      this.changeZoom(MIN_ZOOM_LEVEL);
+    }
+
     this.moveStartOffsetX = 0;
     this.moveStartOffsetY = 0;
     // Snap image back into frame if outside max offset range
@@ -1017,15 +1021,27 @@ class ReactImageLightbox extends Component {
     this.swipeEndX = 0;
     this.swipeEndY = 0;
 
-    if (!event || this.isAnimating() || xDiffAbs < yDiffAbs * 1.5) {
-      return;
-    }
+    const clientX = event.changedTouches
+      ? event.changedTouches[0].clientX
+      : event.clientX;
+    const clientY = event.changedTouches
+      ? event.changedTouches[0].clientY
+      : event.clientY;
 
     if (xDiffAbs < MIN_SWIPE_DISTANCE) {
       const boxRect = this.getLightboxRect();
       if (xDiffAbs < boxRect.width / 4) {
+        this.changeZoom(
+          this.state.zoomLevel + ZOOM_BUTTON_INCREMENT_SIZE,
+          clientX,
+          clientY
+        );
         return;
       }
+    }
+
+    if (!event || this.isAnimating() || xDiffAbs < yDiffAbs * 1.5) {
+      return;
     }
 
     if (xDiff > 0 && this.props.prevSrc) {
@@ -1339,6 +1355,9 @@ class ReactImageLightbox extends Component {
 
       if (zoomLevel > MIN_ZOOM_LEVEL) {
         imageStyle.cursor = 'move';
+        imageStyle.zIndex = 1;
+      } else {
+        imageStyle.cursor = 'zoom-in';
       }
 
       // support IE 9 and 11
@@ -1406,7 +1425,6 @@ class ReactImageLightbox extends Component {
             className={`${imageClass} ${styles.image} ${
               styles.imageDiscourager
             }`}
-            onDoubleClick={this.handleImageDoubleClick}
             onWheel={this.handleImageMouseWheel}
             style={imageStyle}
             key={imageSrc + keyEndings[srcType]}
@@ -1419,7 +1437,6 @@ class ReactImageLightbox extends Component {
           <img
             {...(imageCrossOrigin ? { crossOrigin: imageCrossOrigin } : {})}
             className={`${imageClass} ${styles.image}`}
-            onDoubleClick={this.handleImageDoubleClick}
             onWheel={this.handleImageMouseWheel}
             onDragStart={e => e.preventDefault()}
             style={imageStyle}

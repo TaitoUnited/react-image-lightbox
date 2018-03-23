@@ -13,13 +13,19 @@ export const ZOOM_BUTTON_INCREMENT_SIZE = 100;
 // Used to judge the amount of horizontal scroll needed to initiate a image move
 export const WHEEL_MOVE_X_THRESHOLD = 200;
 
+// Drag distance below this is interpreted as single click
+export const DRAG_ZOOM_OUT_THRESHOLD = 20;
+
 // Used to judge the amount of vertical scroll needed to initiate a zoom action
 export const WHEEL_MOVE_Y_THRESHOLD = 1;
 
 export const KEYS = {
+  ENTER: 13,
   ESC: 27,
   LEFT_ARROW: 37,
+  UP_ARROW: 38,
   RIGHT_ARROW: 39,
+  DOWN_ARROW: 40,
 };
 
 // Actions
@@ -36,4 +42,4 @@ export const SOURCE_TOUCH = 2;
 export const SOURCE_POINTER = 3;
 
 // Minimal swipe distance
-export const MIN_SWIPE_DISTANCE = 200;
+export const MIN_SWIPE_DISTANCE = 100;
